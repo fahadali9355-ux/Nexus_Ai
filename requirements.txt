@@ -14,3 +14,6 @@ pyautogui
 psutil
 pillow
 comtypes
+selenium
+webdriver-manager
+

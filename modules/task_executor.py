@@ -220,8 +220,106 @@ def take_screenshot() -> str:
         return f"Sorry, could not capture screenshot: {str(e)}"
 
 
+import atexit
+import threading
+from typing import Any, Dict, List, Optional
+
+# Module-level persistent Selenium driver and tracked tabs mapping
+_driver: Optional[Any] = None
+_driver_lock = threading.Lock()
+_tracked_tabs: Dict[str, str] = {}  # {friendly_key: window_handle}
+
+
+def _get_driver() -> Optional[Any]:
+    """Retrieves or lazily initializes the persistent Selenium Chrome WebDriver instance.
+
+    Uses webdriver-manager for automatic ChromeDriver binary management.
+    Thread-safe and verifies active browser session liveness.
+    """
+    global _driver
+    with _driver_lock:
+        if _driver is not None:
+            try:
+                # Check if the driver session is still alive
+                _ = _driver.window_handles
+                return _driver
+            except Exception:
+                # Session expired or user manually closed Chrome window
+                try:
+                    _driver.quit()
+                except Exception:
+                    pass
+                _driver = None
+                _tracked_tabs.clear()
+
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options
+            from selenium.webdriver.chrome.service import Service
+            from webdriver_manager.chrome import ChromeDriverManager
+
+            options = Options()
+            options.add_argument("--start-maximized")
+            options.add_argument("--disable-blink-features=AutomationControlled")
+            options.add_argument("--log-level=3")
+            options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            options.add_experimental_option("useAutomationExtension", False)
+
+            # Auto-install/match compatible ChromeDriver binary
+            service = Service(ChromeDriverManager().install())
+            _driver = webdriver.Chrome(service=service, options=options)
+            print("[Browser Automation] Persistent Selenium Chrome WebDriver initialized.")
+            return _driver
+        except Exception as driver_err:
+            print(f"[Browser Automation Warning] Failed to initialize Selenium WebDriver: {driver_err}")
+            _driver = None
+            return None
+
+
+def cleanup_browser() -> None:
+    """Gracefully quits the persistent Selenium browser instance and frees resources."""
+    global _driver
+    with _driver_lock:
+        if _driver is not None:
+            try:
+                print("[Browser Automation] Closing persistent Selenium WebDriver...")
+                _driver.quit()
+            except Exception as quit_err:
+                print(f"[Browser Automation Warning] Error quitting WebDriver: {quit_err}")
+            finally:
+                _driver = None
+                _tracked_tabs.clear()
+
+
+# Register cleanup with Python atexit handler
+atexit.register(cleanup_browser)
+
+
+def _extract_friendly_key(url_or_term: str) -> str:
+    """Extracts a normalized, friendly key from a URL or search query for tab tracking."""
+    cleaned = str(url_or_term).strip().lower()
+    # Remove protocol prefix
+    if cleaned.startswith("http://"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("https://"):
+        cleaned = cleaned[8:]
+    # Remove leading 'www.'
+    if cleaned.startswith("www."):
+        cleaned = cleaned[4:]
+    # Split query parameters or path
+    cleaned = cleaned.split("/")[0].split("?")[0]
+    # If domain contains extensions, extract base name (e.g. 'youtube.com' -> 'youtube')
+    parts = cleaned.split(".")
+    if len(parts) > 1 and parts[0]:
+        return parts[0]
+    return cleaned
+
+
 def open_website(url_or_search_term: str) -> str:
-    """Opens default browser to a URL or performs a Google search query.
+    """Opens a website URL or search term in a new tab of the persistent Selenium browser.
+
+    Tracks the window handle under friendly identifiers for targeted tab closing.
+    Falls back gracefully to the standard default browser if Selenium is unavailable.
 
     Args:
         url_or_search_term (str): Web address or search keywords.
@@ -232,24 +330,213 @@ def open_website(url_or_search_term: str) -> str:
     if not url_or_search_term or not str(url_or_search_term).strip():
         return "Please specify a URL or search query to open."
 
-    target = str(url_or_search_term).strip()
+    raw_target = str(url_or_search_term).strip()
+    target_lower = raw_target.lower()
+
+    # Determine target URL
+    if target_lower.startswith("http://") or target_lower.startswith("https://"):
+        target_url = raw_target
+    elif "." in raw_target and " " not in raw_target:
+        target_url = f"https://{raw_target}"
+    else:
+        # Check if known direct service without TLD (e.g. 'youtube', 'github', 'reddit')
+        known_services = {
+            "youtube": "https://www.youtube.com",
+            "github": "https://www.github.com",
+            "google": "https://www.google.com",
+            "reddit": "https://www.reddit.com",
+            "twitter": "https://www.twitter.com",
+            "x": "https://www.x.com",
+            "wikipedia": "https://www.wikipedia.org",
+            "gmail": "https://mail.google.com",
+            "chatgpt": "https://chatgpt.com",
+        }
+        if target_lower in known_services:
+            target_url = known_services[target_lower]
+        else:
+            query_enc = urllib.parse.quote_plus(raw_target)
+            target_url = f"https://www.google.com/search?q={query_enc}"
+
+    driver = _get_driver()
+    if driver is None:
+        # Fallback to standard system browser
+        try:
+            webbrowser.open(target_url)
+            return f"Opening {raw_target} in your default browser."
+        except Exception as wb_err:
+            return f"Sorry, could not open web link: {wb_err}"
+
+    # Selenium browser automation
+    try:
+        with _driver_lock:
+            handles = driver.window_handles
+            if len(handles) == 1 and driver.current_url in ("data:,", "about:blank", ""):
+                # Reuse the initial default blank tab
+                driver.get(target_url)
+                current_handle = driver.current_window_handle
+            else:
+                # Open a new tab in the existing browser window
+                driver.switch_to.new_window("tab")
+                driver.get(target_url)
+                current_handle = driver.current_window_handle
+
+            # Store friendly key and raw target mappings
+            friendly_key = _extract_friendly_key(raw_target)
+            _tracked_tabs[friendly_key] = current_handle
+            _tracked_tabs[target_lower] = current_handle
+
+            return f"Opening {raw_target} in a new browser tab."
+    except Exception as sel_err:
+        print(f"[Browser Automation Error] Selenium navigation failed: {sel_err}. Falling back to default browser...")
+        try:
+            webbrowser.open(target_url)
+            return f"Opening {raw_target} in your default browser."
+        except Exception:
+            return f"Sorry, could not open website: {sel_err}"
+
+
+def close_website(identifier: str) -> str:
+    """Closes a specific website tab in the persistent Selenium browser by name or keyword.
+
+    Searches tracked tabs first, then checks active tab titles/URLs across the session.
+    Only closes the matched tab, leaving other tabs and the browser active.
+
+    Args:
+        identifier (str): Website name, domain, or keyword (e.g. 'youtube', 'github', 'google').
+
+    Returns:
+        str: TTS-friendly confirmation message.
+    """
+    if not identifier or not str(identifier).strip():
+        return "Please specify the website tab you would like to close."
+
+    clean_id = str(identifier).strip().lower()
+    # Normalize common conversational suffixes (e.g. 'youtube tab' -> 'youtube')
+    for suffix in [" tab", " website", " webpage", " page"]:
+        if clean_id.endswith(suffix):
+            clean_id = clean_id[: -len(suffix)].strip()
+
+    driver = _get_driver()
+    if driver is None:
+        return f"I couldn't find a tab for '{identifier}' that's currently open."
 
     try:
-        # Check if it's a direct URL
-        if target.startswith("http://") or target.startswith("https://"):
-            webbrowser.open(target)
-            return f"Opening {target} in your browser."
-        elif "." in target and " " not in target:
-            full_url = f"https://{target}"
-            webbrowser.open(full_url)
-            return f"Opening {target} in your browser."
-        else:
-            query_enc = urllib.parse.quote_plus(target)
-            search_url = f"https://www.google.com/search?q={query_enc}"
-            webbrowser.open(search_url)
-            return f"Searching Google for {target}."
+        with _driver_lock:
+            all_handles = driver.window_handles
+            if not all_handles:
+                _tracked_tabs.clear()
+                return f"I couldn't find a tab for '{identifier}' that's currently open."
+
+            # Clean stale handles from tracked dictionary
+            stale_keys = [k for k, h in _tracked_tabs.items() if h not in all_handles]
+            for k in stale_keys:
+                _tracked_tabs.pop(k, None)
+
+            target_handle: Optional[str] = None
+            target_name = identifier
+
+            # Step 1: Check tracked tabs dictionary (exact or substring match)
+            if clean_id in _tracked_tabs:
+                target_handle = _tracked_tabs[clean_id]
+                target_name = clean_id
+            else:
+                for tracked_key, handle in _tracked_tabs.items():
+                    if clean_id in tracked_key or tracked_key in clean_id:
+                        target_handle = handle
+                        target_name = tracked_key
+                        break
+
+            # Step 2: Fallback - Inspect all open tabs in current session by Title and URL
+            if target_handle is None:
+                current_active = driver.current_window_handle
+                for h in all_handles:
+                    try:
+                        driver.switch_to.window(h)
+                        title = (driver.title or "").lower()
+                        url = (driver.current_url or "").lower()
+                        if clean_id in title or clean_id in url:
+                            target_handle = h
+                            target_name = driver.title or identifier
+                            break
+                    except Exception:
+                        continue
+                # Restore active window if no match was found
+                if target_handle is None and current_active in all_handles:
+                    try:
+                        driver.switch_to.window(current_active)
+                    except Exception:
+                        pass
+
+            # Step 3: If tab was found, close ONLY that tab
+            if target_handle is not None and target_handle in driver.window_handles:
+                driver.switch_to.window(target_handle)
+
+                # If this is the last remaining tab in the browser, open a blank tab first
+                # so the browser window remains open and alive for future commands
+                if len(driver.window_handles) == 1:
+                    driver.switch_to.new_window("tab")
+                    driver.get("about:blank")
+                    driver.switch_to.window(target_handle)
+                    driver.close()
+                    # Switch to the new blank tab
+                    driver.switch_to.window(driver.window_handles[0])
+                else:
+                    driver.close()
+                    # Switch focus to the latest remaining tab
+                    remaining_handles = driver.window_handles
+                    if remaining_handles:
+                        driver.switch_to.window(remaining_handles[-1])
+
+                # Remove closed handle from tracked dictionary
+                keys_to_remove = [k for k, h in _tracked_tabs.items() if h == target_handle]
+                for k in keys_to_remove:
+                    _tracked_tabs.pop(k, None)
+
+                return f"Closed the {target_name.capitalize()} tab."
+
+            # Step 4: Not found
+            return f"I couldn't find a tab for '{identifier}' that's currently open."
+
+    except Exception as close_err:
+        print(f"[Browser Automation Error] Error closing tab for '{identifier}': {close_err}")
+        return f"Sorry, I had trouble closing the tab for '{identifier}'."
+
+
+def get_open_tabs() -> List[Dict[str, str]]:
+    """Returns a list of metadata for all currently open tabs in the automated browser session.
+
+    Useful for diagnostics and automated verification.
+
+    Returns:
+        List[Dict[str, str]]: List of dictionaries containing handle, title, and current URL.
+    """
+    driver = _get_driver()
+    if driver is None:
+        return []
+
+    tabs_info: List[Dict[str, str]] = []
+    try:
+        with _driver_lock:
+            current_handle = driver.current_window_handle
+            for h in driver.window_handles:
+                try:
+                    driver.switch_to.window(h)
+                    tabs_info.append(
+                        {
+                            "handle": h,
+                            "title": driver.title,
+                            "url": driver.current_url,
+                        }
+                    )
+                except Exception:
+                    pass
+            # Restore active focus
+            if current_handle in driver.window_handles:
+                driver.switch_to.window(current_handle)
     except Exception as e:
-        return f"Sorry, could not open web link: {str(e)}"
+        print(f"[Browser Automation] Error inspecting open tabs: {e}")
+
+    return tabs_info
 
 
 def get_system_info() -> str:

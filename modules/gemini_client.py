@@ -5,12 +5,14 @@ Supports conversational response generation as well as native Gemini Function Ca
 """
 
 import os
+import time
 from typing import Any, Callable, Dict, Optional
 from dotenv import load_dotenv
 from google import genai
 from google.genai import errors, types
 
 from modules.task_executor import (
+    close_website,
     create_text_file,
     get_system_info,
     lock_computer,
@@ -24,8 +26,14 @@ from modules.task_executor import (
 load_dotenv()
 
 # Primary and fallback model identifiers
-PRIMARY_MODEL = "gemini-3.6-flash"
-FALLBACK_MODEL = "gemini-3.8-flash"
+PRIMARY_MODEL = "gemini-3.8-flash"
+FALLBACK_MODELS = [
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-flash-latest",
+]
+
 
 # Whitelisted action dispatch table for safe execution
 ACTION_DISPATCH: Dict[str, Callable[..., str]] = {
@@ -34,6 +42,7 @@ ACTION_DISPATCH: Dict[str, Callable[..., str]] = {
     "lock_computer": lock_computer,
     "take_screenshot": take_screenshot,
     "open_website": open_website,
+    "close_website": close_website,
     "get_system_info": get_system_info,
     "create_text_file": create_text_file,
 }
@@ -42,7 +51,7 @@ ACTION_DISPATCH: Dict[str, Callable[..., str]] = {
 ACTION_DECLARATIONS = [
     types.FunctionDeclaration(
         name="open_application",
-        description="Opens a common Windows desktop application such as Notepad, Calculator, Chrome, File Explorer, Terminal, Paint, or Settings.",
+        description="Opens a desktop Windows application such as Notepad, Calculator, Chrome, File Explorer, Terminal, Paint, or Settings. Do NOT use this for opening websites (use open_website for websites).",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
@@ -80,16 +89,30 @@ ACTION_DECLARATIONS = [
     ),
     types.FunctionDeclaration(
         name="open_website",
-        description="Opens a website URL or searches Google in the default web browser.",
+        description="Opens a website URL (e.g. 'youtube', 'github.com', 'google', 'reddit') or search query in a browser tab.",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={
                 "url_or_search_term": types.Schema(
                     type=types.Type.STRING,
-                    description="The website URL (e.g. 'youtube.com', 'https://github.com') or search keywords to look up.",
+                    description="The website name/URL (e.g. 'youtube', 'github.com', 'https://reddit.com') or search keywords to look up.",
                 )
             },
             required=["url_or_search_term"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="close_website",
+        description="Closes a specific open website tab (e.g. 'youtube', 'github', 'reddit', 'google') in the browser without closing the entire browser window.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "identifier": types.Schema(
+                    type=types.Type.STRING,
+                    description="The name, domain, or keyword of the website tab to close (e.g. 'youtube', 'github', 'google.com').",
+                )
+            },
+            required=["identifier"],
         ),
     ),
     types.FunctionDeclaration(
@@ -144,9 +167,7 @@ def generate_response(
         return None
 
     # Try primary model with automatic fallback on temporary server errors
-    models_to_try = [model]
-    if FALLBACK_MODEL not in models_to_try:
-        models_to_try.append(FALLBACK_MODEL)
+    models_to_try = [model] + [m for m in FALLBACK_MODELS if m != model]
 
     for target_model in models_to_try:
         try:
@@ -157,6 +178,8 @@ def generate_response(
             return response.text
         except errors.APIError as err:
             print(f"[Error: Gemini API] API error on {target_model} (Status {err.code}): {err.message}")
+            if err.code == 429:
+                time.sleep(2.0)
         except Exception as err:
             print(f"[Error: Gemini API] Request error on {target_model}: {err}")
 
@@ -188,9 +211,7 @@ def route_to_action(user_text: str, model: str = PRIMARY_MODEL) -> str:
         temperature=0.1,
     )
 
-    models_to_try = [model]
-    if FALLBACK_MODEL not in models_to_try:
-        models_to_try.append(FALLBACK_MODEL)
+    models_to_try = [model] + [m for m in FALLBACK_MODELS if m != model]
 
     for target_model in models_to_try:
         try:
@@ -232,6 +253,8 @@ def route_to_action(user_text: str, model: str = PRIMARY_MODEL) -> str:
 
         except errors.APIError as err:
             print(f"[Error: Gemini Action Router] API error on {target_model} (Status {err.code}): {err.message}")
+            if err.code == 429:
+                time.sleep(2.5)
         except Exception as err:
             print(f"[Error: Gemini Action Router] Exception on {target_model}: {err}")
 

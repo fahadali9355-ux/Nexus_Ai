@@ -12,6 +12,7 @@ from modules.gemini_client import generate_response, route_to_action
 from modules.text_to_speech import speak_text
 from modules.wikipedia_search import search_wikipedia
 from modules.news_fetch import fetch_top_news
+from modules.task_executor import cleanup_browser
 from modules.wake_word import listen_for_wake_word
 from modules.state import state
 
@@ -51,8 +52,12 @@ UNAMBIGUOUS_ACTION_PATTERNS = [
 
 # Action-oriented command patterns for direct system task execution
 ACTION_COMMAND_PATTERNS = [
-    # Direct app launch/close commands (e.g. 'open notepad', 'launch calculator', 'start chrome', 'close notepad')
-    r"^(?:please\s+)?(?:open|launch|start|close)\s+([a-zA-Z0-9_\.\-]+(?:\s+[a-zA-Z0-9_\.\-]+)?)$",
+    # Direct app launch/close or website opening/closing commands (e.g. 'open notepad', 'close youtube', 'close github tab')
+    r"^(?:please\s+)?(?:open|launch|start|close|shut)\s+([a-zA-Z0-9_\.\-]+(?:\s+[a-zA-Z0-9_\.\-]+)?)$",
+    # Website tab closing commands (e.g. 'close the github tab', 'close that youtube tab', 'close youtube tab')
+    r"^(?:please\s+)?(?:close|shut)\s+(?:the\s+|that\s+)?(?:[\w\.\-]+\s+)?(?:tab|website|webpage)\b",
+    r"^(?:please\s+)?(?:close|shut)\s+(?:the\s+|that\s+)?(?:tab\s+for\s+)?[\w\.\-]+\b",
+    r"\b(?:close|shut)\s+(?:the\s+|that\s+)?(?:github|youtube|reddit|twitter|google|wikipedia|chrome|facebook|instagram)\s*(?:tab)?\b",
     # Volume control commands
     r"\b(?:set|change|turn|adjust)\s+(?:the\s+)?volume\s+(?:to\s+)?\d+\b",
     r"\bvolume\s+to\s+\d+\b",
@@ -375,12 +380,16 @@ def run_voice_loop() -> None:
             print("[CYCLE COMPLETED] Cycle finished. Returning to wake word listener.")
 
         except KeyboardInterrupt:
-            print("\n[SHUTDOWN] Aetheris daemon loop interrupted by user. Exiting...")
+            print("\n[SHUTDOWN] Aetheris daemon loop interrupted by user. Cleaning up and exiting...")
+            cleanup_browser()
             break
         except Exception as loop_err:
             print(f"[PIPELINE EXCEPTION] Unexpected error in daemon cycle: {loop_err}")
             state.set_status("Error / Recovering", active_module="Core Daemon")
             time.sleep(1.0)
+        finally:
+            # Maintain active session cleanup if daemon breaks
+            pass
 
 
 def start_flask_server(host: str = "127.0.0.1", port: int = 5000) -> None:
@@ -401,4 +410,8 @@ if __name__ == "__main__":
     print("-> Web Dashboard live at: http://127.0.0.1:5000")
 
     # Run the continuous voice assistant loop in main thread
-    run_voice_loop()
+    try:
+        run_voice_loop()
+    finally:
+        cleanup_browser()
+
