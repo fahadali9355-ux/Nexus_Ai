@@ -1,0 +1,24 @@
+# Environments
+.env
+.env.local
+venv/
+env/
+ENV/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Audio / Temp Files
+*.wav
+*.mp3
+*.log
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+

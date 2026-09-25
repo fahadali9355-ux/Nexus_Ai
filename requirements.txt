@@ -1,0 +1,16 @@
+sounddevice
+numpy
+scipy
+SpeechRecognition
+google-genai
+pyttsx3
+python-dotenv
+wikipedia
+requests
+openwakeword
+flask>=3.0.0
+pycaw
+pyautogui
+psutil
+pillow
+comtypes
