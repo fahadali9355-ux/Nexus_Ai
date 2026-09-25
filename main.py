@@ -1,4 +1,4 @@
-"""Main entry point for Aetheris voice assistant with continuous daemon loop, silence detection, and smart routing."""
+"""Main entry point for Nexus voice assistant with continuous daemon loop, silence detection, and smart routing."""
 
 import re
 import sys
@@ -220,9 +220,9 @@ def route_and_process(user_text: str) -> str:
 def run_voice_loop() -> None:
     """Executes the continuous end-to-end voice assistant daemon loop."""
     print("\n========================================================")
-    print("      AETHERIS VOICE ASSISTANT - CONTINUOUS DAEMON      ")
+    print("        NEXUS VOICE ASSISTANT - CONTINUOUS DAEMON       ")
     print("========================================================")
-    print("Wake Word: 'hey jarvis' | Status: Active | Dashboard: http://127.0.0.1:5000\n")
+    print("Wake Word: 'hey jarvis' (Nexus trigger) | Status: Active | Dashboard: http://127.0.0.1:5000\n")
 
     # Initialize COM library once at daemon startup for Windows audio and system controls
     try:
@@ -239,7 +239,7 @@ def run_voice_loop() -> None:
             # -------------------------------------------------------------
             state.set_status("Idle / Listening for wake word", active_module="Wake Word Engine")
             print("\n--------------------------------------------------------")
-            print("[LISTENING] Listening continuously for wake word 'hey jarvis'...")
+            print("[LISTENING] Listening continuously for wake word 'Nexus' (model: 'hey_jarvis')...")
 
             try:
                 wake_detected = listen_for_wake_word(wake_word="hey_jarvis", threshold=WAKE_WORD_THRESHOLD)
@@ -380,7 +380,7 @@ def run_voice_loop() -> None:
             print("[CYCLE COMPLETED] Cycle finished. Returning to wake word listener.")
 
         except KeyboardInterrupt:
-            print("\n[SHUTDOWN] Aetheris daemon loop interrupted by user. Cleaning up and exiting...")
+            print("\n[SHUTDOWN] Nexus daemon loop interrupted by user. Cleaning up and exiting...")
             cleanup_browser()
             break
         except Exception as loop_err:

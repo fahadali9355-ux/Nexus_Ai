@@ -1,4 +1,4 @@
-"""Flask Web Dashboard for Aetheris Voice Assistant."""
+"""Flask Web Dashboard for Nexus Voice Assistant."""
 
 import threading
 from typing import Any, Dict
@@ -93,7 +93,7 @@ def test_command():
 # Direct users to run main.py as the single unified entry point.
 if __name__ == "__main__":
     print("\n" + "=" * 60)
-    print("  [AETHERIS NOTICE] Please start the application using:")
+    print("  [NEXUS NOTICE] Please start the application using:")
     print("      python main.py")
     print("=" * 60)
     print("  main.py is the single clean entry point that launches both")

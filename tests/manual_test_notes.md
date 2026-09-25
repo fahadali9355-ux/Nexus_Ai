@@ -1,6 +1,6 @@
 # Manual Test Checklist & Notes
 
-This document provides a manual test plan for verifying the Aetheris voice assistant pipeline under various real-world conditions.
+This document provides a manual test plan for verifying the Nexus voice assistant pipeline under various real-world conditions.
 
 ---
 

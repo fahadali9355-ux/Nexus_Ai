@@ -1,4 +1,4 @@
-"""Comprehensive Verification Script for Aetheris Task Execution & Gemini Tool Calling.
+"""Comprehensive Verification Script for Nexus Task Execution & Gemini Tool Calling.
 
 Tests:
 Part 1: Direct execution of all 7 Windows system action functions.
@@ -31,7 +31,7 @@ from main import parse_intent, identify_handler
 
 def run_tests():
     print("\n" + "=" * 70)
-    print("      AETHERIS SYSTEM TASK EXECUTOR & GEMINI TOOL CALLING TEST       ")
+    print("        NEXUS SYSTEM TASK EXECUTOR & GEMINI TOOL CALLING TEST        ")
     print("=" * 70)
 
     results = {}
@@ -64,11 +64,11 @@ def run_tests():
     results["get_system_info"] = "current time" in res_info.lower() and "battery" in res_info.lower()
 
     # 4. create_text_file
-    print("\n[4/7] Testing create_text_file('aetheris_action_test.txt', content)...")
-    test_content = "Aetheris task executor automated verification test content."
-    res_file = create_text_file("aetheris_action_test.txt", test_content)
+    print("\n[4/7] Testing create_text_file('nexus_action_test.txt', content)...")
+    test_content = "Nexus task executor automated verification test content."
+    res_file = create_text_file("nexus_action_test.txt", test_content)
     print(f"      Result: {res_file}")
-    target_path = SAFE_BASE_DIR / "aetheris_action_test.txt"
+    target_path = SAFE_BASE_DIR / "nexus_action_test.txt"
     file_exists = target_path.exists()
     content_matches = False
     if file_exists:

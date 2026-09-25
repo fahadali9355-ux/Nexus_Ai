@@ -1,4 +1,4 @@
-"""End-to-end programmatic verification script for Aetheris Voice Pipeline."""
+"""End-to-end programmatic verification script for Nexus Voice Pipeline."""
 
 import os
 import sys
@@ -18,14 +18,14 @@ from modules.text_to_speech import speak_text
 
 def test_full_cycle():
     print("\n" + "=" * 60)
-    print("      AETHERIS END-TO-END VERIFICATION CYCLE TEST      ")
+    print("        NEXUS END-TO-END VERIFICATION CYCLE TEST        ")
     print("=" * 60)
 
     # Stage 1: Wake Word Detected Trigger
     print("\n[Stage 1/5: Wake Word Event Trigger]")
     state.set_status("Listening for command", active_module="Audio Recorder")
     print("-> Status updated to: 'Listening for command'")
-    print("-> Wake word 'hey jarvis' trigger acknowledged.")
+    print("-> Wake word 'hey jarvis' (Nexus trigger) acknowledged.")
 
     # Stage 2: Audio Recording
     print("\n[Stage 2/5: Audio Recording Capture]")

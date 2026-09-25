@@ -84,7 +84,7 @@ ACTION_DECLARATIONS = [
     ),
     types.FunctionDeclaration(
         name="take_screenshot",
-        description="Captures a full screenshot of the screen and saves it with a timestamp into the safe Documents/Aetheris folder.",
+        description="Captures a full screenshot of the screen and saves it with a timestamp into the safe Documents/Nexus folder.",
         parameters=types.Schema(type=types.Type.OBJECT, properties={}),
     ),
     types.FunctionDeclaration(
@@ -122,7 +122,7 @@ ACTION_DECLARATIONS = [
     ),
     types.FunctionDeclaration(
         name="create_text_file",
-        description="Creates a simple text file safely inside the Documents/Aetheris folder with given filename and content.",
+        description="Creates a simple text file safely inside the Documents/Nexus folder with given filename and content.",
         parameters=types.Schema(
             type=types.Type.OBJECT,
             properties={

@@ -1,4 +1,4 @@
-"""Microphone & Wake-Word Diagnostic Tool for Aetheris.
+"""Microphone & Wake-Word Diagnostic Tool for Nexus.
 
 Run this script to check your microphone levels, select the right device,
 and test real-time 'Hey Jarvis' detection sensitivity.

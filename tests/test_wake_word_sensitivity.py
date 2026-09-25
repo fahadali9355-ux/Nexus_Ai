@@ -12,7 +12,7 @@ from modules.wake_word import listen_for_wake_word
 
 def run_sensitivity_test(duration: float = 30.0):
     print("\n" + "=" * 75)
-    print("        AETHERIS WAKE WORD SENSITIVITY & CONFIDENCE DIAGNOSTIC        ")
+    print("         NEXUS WAKE WORD SENSITIVITY & CONFIDENCE DIAGNOSTIC          ")
     print("=" * 75)
     print("\n[INSTRUCTIONS]")
     print(f"Say 'Hey Jarvis' several times with natural pronunciation variations")

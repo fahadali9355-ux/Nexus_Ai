@@ -3,7 +3,7 @@
 import wikipedia
 
 # Set browser User-Agent to satisfy Wikipedia MediaWiki API policy
-wikipedia.set_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AetherisVoiceAssistant/1.0")
+wikipedia.set_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) NexusVoiceAssistant/1.0")
 
 
 def search_wikipedia(query: str, sentences: int = 2) -> str:

@@ -21,7 +21,7 @@ from main import parse_intent, identify_handler
 
 def run_tab_management_test():
     print("\n" + "=" * 75)
-    print("       AETHERIS SELENIUM TAB MANAGEMENT PROGRAMMATIC TEST SUITE       ")
+    print("        NEXUS SELENIUM TAB MANAGEMENT PROGRAMMATIC TEST SUITE         ")
     print("=" * 75)
 
     # Ensure clean starting state

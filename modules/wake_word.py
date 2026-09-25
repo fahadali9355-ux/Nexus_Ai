@@ -72,6 +72,9 @@ def _update_last_max_score(score: float) -> None:
     setattr(listen_for_wake_word, "last_max_score", score)
 
 
+# TODO: Replace with custom-trained "nexus" wake word model once training 
+# is complete via openWakeWord's Colab notebook. Currently using 
+# "hey_jarvis" as a placeholder detection model.
 def listen_for_wake_word(
     wake_word: str = "hey_jarvis",
     threshold: Optional[float] = None,

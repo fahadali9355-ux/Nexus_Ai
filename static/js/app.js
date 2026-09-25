@@ -1,5 +1,5 @@
 /**
- * Aetheris Voice Assistant - Frontend Realtime Dashboard Controller
+ * Nexus Voice Assistant - Frontend Realtime Dashboard Controller
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -209,7 +209,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
                 <div class="item-response">
                     <div class="response-label">
-                        <span>Aetheris Response</span>
+                        <span>Nexus Response</span>
                         <button class="copy-btn" data-text="${escapeHtmlAttr(item.response || '')}">Copy</button>
                     </div>
                     <div class="response-text">${escapeHtml(item.response || "")}</div>

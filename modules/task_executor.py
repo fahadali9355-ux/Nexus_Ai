@@ -1,4 +1,4 @@
-"""Task Executor Module for Aetheris Voice Assistant.
+"""Task Executor Module for Nexus Voice Assistant.
 
 Provides Windows-compatible real system task execution capabilities:
 1. open_application(app_name)
@@ -20,8 +20,8 @@ import webbrowser
 from typing import Optional
 
 
-# Designated safe folder for Aetheris user-generated files and screenshots
-SAFE_BASE_DIR = Path.home() / "Documents" / "Aetheris"
+# Designated safe folder for Nexus user-generated files and screenshots
+SAFE_BASE_DIR = Path.home() / "Documents" / "Nexus"
 
 
 def _ensure_safe_directory() -> Path:
@@ -153,7 +153,7 @@ def lock_computer() -> str:
 
 
 def take_screenshot() -> str:
-    """Captures a full desktop screenshot and saves it with a timestamped filename in Documents/Aetheris.
+    """Captures a full desktop screenshot and saves it with a timestamped filename in Documents/Nexus.
 
     Returns:
         str: TTS-friendly confirmation message including the saved file path.
@@ -215,7 +215,7 @@ def take_screenshot() -> str:
         img = Image.frombuffer("RGBA", (w, h), buf.raw, "raw", "BGRA", 0, 1)
         img.convert("RGB").save(str(filepath))
 
-        return f"Screenshot captured and saved to your Aetheris Documents folder as {filename}."
+        return f"Screenshot captured and saved to your Nexus Documents folder as {filename}."
     except Exception as e:
         return f"Sorry, could not capture screenshot: {str(e)}"
 
@@ -566,10 +566,10 @@ def get_system_info() -> str:
 
 
 def create_text_file(filename: str, content: str) -> str:
-    """Creates a text file safely within the designated Documents/Aetheris directory.
+    """Creates a text file safely within the designated Documents/Nexus directory.
 
     Strict guardrails:
-    - Path traversal protection (strips directory paths, restricts strictly to Documents/Aetheris).
+    - Path traversal protection (strips directory paths, restricts strictly to Documents/Nexus).
     - Appends .txt extension if omitted.
 
     Args:
@@ -593,11 +593,11 @@ def create_text_file(filename: str, content: str) -> str:
 
         # Enforce sandbox guardrail: Target file must resolve strictly inside safe_dir
         if not str(target_path).startswith(str(safe_dir.resolve())):
-            return "Security restriction: Cannot create files outside the Documents/Aetheris folder."
+            return "Security restriction: Cannot create files outside the Documents/Nexus folder."
 
         with open(target_path, "w", encoding="utf-8") as f:
             f.write(str(content))
 
-        return f"Created text file {clean_base} in your Aetheris Documents folder."
+        return f"Created text file {clean_base} in your Nexus Documents folder."
     except Exception as e:
         return f"Sorry, could not create text file: {str(e)}"

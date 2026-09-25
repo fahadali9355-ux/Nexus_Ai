@@ -1,4 +1,4 @@
-"""Thread-safe global state manager for Aetheris Voice Assistant & Flask Dashboard."""
+"""Thread-safe global state manager for Nexus Voice Assistant & Flask Dashboard."""
 
 from datetime import datetime
 import threading

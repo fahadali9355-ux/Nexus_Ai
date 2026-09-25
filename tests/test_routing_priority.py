@@ -1,4 +1,4 @@
-"""Test script to verify intent routing priorities in Aetheris."""
+"""Test script to verify intent routing priorities in Nexus."""
 
 import sys
 from pathlib import Path
@@ -28,7 +28,7 @@ def run_routing_tests():
     ]
 
     print("\n" + "=" * 75)
-    print("                 AETHERIS INTENT ROUTING VERIFICATION TEST               ")
+    print("                  NEXUS INTENT ROUTING VERIFICATION TEST                 ")
     print("=" * 75)
 
     all_passed = True

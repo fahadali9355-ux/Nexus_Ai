@@ -28,7 +28,7 @@ def test_routing_cases():
     ]
 
     print("\n" + "=" * 65)
-    print("       AETHERIS FIX B: COMMAND ROUTING HEURISTICS TEST        ")
+    print("         NEXUS FIX B: COMMAND ROUTING HEURISTICS TEST         ")
     print("=" * 65)
 
     all_passed = True
