@@ -1,7 +1,5 @@
 """Flask Web Dashboard for Nexus Voice Assistant."""
 
-import threading
-from typing import Any, Dict
 from flask import Flask, jsonify, render_template, request
 
 from modules.state import state

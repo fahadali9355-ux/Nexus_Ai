@@ -11,7 +11,6 @@ from modules.task_executor import (
     KNOWN_APPS,
     KNOWN_SERVICES,
     close_website,
-    create_text_file,
     get_system_info,
     open_application,
     open_website,

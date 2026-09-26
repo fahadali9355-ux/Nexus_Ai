@@ -44,14 +44,13 @@ CONVERSATIONAL_FALLBACK_MODELS = [
     "gemini-flash-lite-latest",
 ]
 
-# Dedicated high-depth model for low-frequency, high-value document generation
-PRIMARY_DOCUMENT_MODEL = os.getenv("GEMINI_DOCUMENT_MODEL", "gemini-3.8-flash")
+# Dedicated high-depth model for document generation
+PRIMARY_DOCUMENT_MODEL = os.getenv("GEMINI_DOCUMENT_MODEL", "gemini-3.5-flash-lite")
 DOCUMENT_FALLBACK_MODELS = [
-    "gemini-3.5-flash-lite",
     "gemini-3.6-flash",
     "gemini-3.7-flash",
     "gemini-3.5-flash",
-    "gemini-2.5-pro",
+    "gemini-flash-lite-latest",
 ]
 
 # Backward compatibility aliases

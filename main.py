@@ -10,11 +10,11 @@ from modules.audio_input import record_audio_with_silence_detection
 from modules.speech_to_text import transcribe_audio
 from modules.gemini_client import generate_response, route_to_action
 from modules.text_to_speech import speak_text, stop_speech
-from modules.wikipedia_search import search_wikipedia
-from modules.news_fetch import fetch_top_news
 from modules.task_executor import cleanup_browser
 from modules.wake_word import listen_for_wake_word
 from modules.fast_path import is_shutdown_command, try_local_fast_path
+from modules.news_fetch import fetch_top_news
+from modules.wikipedia_search import search_wikipedia
 from modules.state import state
 
 

@@ -10,16 +10,20 @@ Provides Windows-compatible real system task execution capabilities:
 7. create_text_file(filename, content)
 """
 
+import atexit
 import ctypes
 from datetime import datetime
+import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import threading
 import time
+from typing import Any, Dict, List, Optional, Tuple
 import urllib.parse
 import urllib.request
 import webbrowser
-from typing import Any, Dict, List, Optional, Tuple
 
 from modules.document_generator import (
     create_assignment_document,
@@ -251,13 +255,6 @@ def take_screenshot() -> str:
         return f"Screenshot captured and saved to your Nexus Documents folder as {filename}."
     except Exception as e:
         return f"Sorry, could not capture screenshot: {str(e)}"
-
-
-import atexit
-import json
-import shutil
-import threading
-from typing import Any, Dict, List, Optional
 
 # Module-level persistent Selenium driver lock and instance
 _driver: Optional[Any] = None

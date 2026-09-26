@@ -10,7 +10,6 @@ requests
 vosk>=0.3.45
 flask>=3.0.0
 pycaw
-pyautogui
 psutil
 pillow
 comtypes
@@ -19,5 +18,3 @@ webdriver-manager
 python-docx>=1.1.0
 python-pptx>=1.0.0
 fpdf2>=2.8.0
-pygetwindow>=0.0.9
-
