@@ -91,9 +91,9 @@ def test_command():
 # Direct users to run main.py as the single unified entry point.
 if __name__ == "__main__":
     print("\n" + "=" * 60)
-    print("  [NEXUS NOTICE] Please start the application using:")
-    print("      python main.py")
-    print("=" * 60)
-    print("  main.py is the single clean entry point that launches both")
-    print("  the continuous voice assistant loop and the Flask dashboard.")
-    print("  Running app.py directly is disabled to avoid port conflicts.\n")
+    print("  [NEXUS] Starting Web Dashboard on http://127.0.0.1:5000")
+    print("  Note: To run both the Voice Assistant and Dashboard together,")
+    print("        use: python main.py")
+    print("=" * 60 + "\n")
+    app.run(host="127.0.0.1", port=5000, debug=False)
+
