@@ -66,16 +66,38 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // Stepper Items inside Live Pipeline Status card (Step 2)
+    const stepperWake = document.getElementById("stepper-node-wake");
+    const stepperRecord = document.getElementById("stepper-node-record");
+    const stepperTranscribe = document.getElementById("stepper-node-transcribe");
+    const stepperRoute = document.getElementById("stepper-node-route");
+    const stepperSpeak = document.getElementById("stepper-node-speak");
+    const stepperNodes = [stepperWake, stepperRecord, stepperTranscribe, stepperRoute, stepperSpeak];
+
+    const stepperPillWake = document.getElementById("stepper-pill-wake");
+    const stepperPillRecord = document.getElementById("stepper-pill-record");
+    const stepperPillTranscribe = document.getElementById("stepper-pill-transcribe");
+    const stepperPillRoute = document.getElementById("stepper-pill-route");
+    const stepperPillSpeak = document.getElementById("stepper-pill-speak");
+
+    function setStepperBadge(pill, text, statusType) {
+        if (!pill) return;
+        pill.textContent = text;
+        pill.className = "stepper-pill " + statusType;
+    }
+
     function setConnected(connected) {
-        if (connected === isConnected) return;
+        if (connected === isConnected && connectionDot.classList.contains(connected ? "active" : "error")) return;
         isConnected = connected;
         if (connected) {
             connectionDot.className = "pulse-dot active";
+            connectionDot.style.removeProperty("background-color");
+            connectionDot.style.removeProperty("box-shadow");
             connectionStatus.textContent = "Live Connected";
         } else {
-            connectionDot.className = "pulse-dot";
+            connectionDot.className = "pulse-dot error";
             connectionDot.style.backgroundColor = "var(--accent-rose)";
-            connectionDot.style.boxShadow = "0 0 8px var(--accent-rose)";
+            connectionDot.style.boxShadow = "0 0 10px var(--accent-rose)";
             connectionStatus.textContent = "Reconnecting...";
         }
     }
@@ -90,49 +112,77 @@ document.addEventListener("DOMContentLoaded", () => {
         const uptime = data.uptime_seconds || 0;
 
         statusDisplay.textContent = rawStatus;
-        activeHandlerVal.textContent = activeModule;
+        if (activeHandlerVal) activeHandlerVal.textContent = activeModule;
         totalCyclesVal.textContent = cycles;
         uptimeCounter.textContent = formatUptime(uptime);
 
-        // Reset step highlights
-        stepNodes.forEach(n => n.classList.remove("active-step"));
+        // Reset step highlights for both Module Status Map and Live Pipeline Stepper
+        stepNodes.forEach(n => n && n.classList.remove("active-step"));
+        stepperNodes.forEach(n => n && n.classList.remove("active-step"));
+
+        // Default stepper states
+        setStepperBadge(stepperPillWake, "Ready", "pill-ready");
+        setStepperBadge(stepperPillRecord, "Ready", "pill-ready");
+        setStepperBadge(stepperPillTranscribe, "Ready", "pill-ready");
+        setStepperBadge(stepperPillRoute, "Ready", "pill-ready");
+        setStepperBadge(stepperPillSpeak, "Ready", "pill-ready");
 
         // State Machine Mapping
         if (rawStatus.includes("wake word") || rawStatus.toLowerCase().includes("idle")) {
             orbVisualizer.setAttribute("data-state", "idle");
-            statusPill.textContent = "LISTENING WAKE";
-            statusPill.style.color = "var(--primary-cyan)";
-            statusPill.style.borderColor = "rgba(6, 182, 212, 0.4)";
+            statusPill.textContent = "LISTENING";
+            statusPill.style.color = "var(--accent-emerald)";
+            statusPill.style.borderColor = "rgba(16, 185, 129, 0.4)";
             statusSubtext.textContent = "Waiting for wake word trigger ('Nexus')...";
-            nodeWake.classList.add("active-step");
+            if (nodeWake) nodeWake.classList.add("active-step");
+            if (stepperWake) stepperWake.classList.add("active-step");
+            setStepperBadge(stepperPillWake, "Active", "pill-active");
         } else if (rawStatus.toLowerCase().includes("command") || rawStatus.toLowerCase().includes("listening for command")) {
             orbVisualizer.setAttribute("data-state", "recording");
             statusPill.textContent = "RECORDING";
             statusPill.style.color = "var(--accent-rose)";
             statusPill.style.borderColor = "rgba(244, 63, 94, 0.4)";
             statusSubtext.textContent = "Microphone open: Speak your query now...";
-            nodeRecord.classList.add("active-step");
+            if (nodeRecord) nodeRecord.classList.add("active-step");
+            if (stepperRecord) stepperRecord.classList.add("active-step");
+            setStepperBadge(stepperPillWake, "Active", "pill-active");
+            setStepperBadge(stepperPillRecord, "Recording", "pill-recording");
         } else if (rawStatus.toLowerCase().includes("transcribing")) {
             orbVisualizer.setAttribute("data-state", "processing");
             statusPill.textContent = "TRANSCRIBING";
-            statusPill.style.color = "var(--primary-violet)";
-            statusPill.style.borderColor = "rgba(139, 92, 246, 0.4)";
+            statusPill.style.color = "var(--primary-cyan)";
+            statusPill.style.borderColor = "rgba(0, 210, 255, 0.4)";
             statusSubtext.textContent = "Transcribing audio to text...";
-            nodeTranscribe.classList.add("active-step");
+            if (nodeTranscribe) nodeTranscribe.classList.add("active-step");
+            if (stepperTranscribe) stepperTranscribe.classList.add("active-step");
+            setStepperBadge(stepperPillWake, "Active", "pill-active");
+            setStepperBadge(stepperPillRecord, "Active", "pill-active");
+            setStepperBadge(stepperPillTranscribe, "Processing", "pill-processing");
         } else if (rawStatus.toLowerCase().includes("processing")) {
             orbVisualizer.setAttribute("data-state", "processing");
-            statusPill.textContent = "ROUTING & AI";
+            statusPill.textContent = "PROCESSING";
             statusPill.style.color = "var(--primary-violet)";
             statusPill.style.borderColor = "rgba(139, 92, 246, 0.4)";
             statusSubtext.textContent = `Processing query via ${activeModule}...`;
-            nodeRoute.classList.add("active-step");
+            if (nodeRoute) nodeRoute.classList.add("active-step");
+            if (stepperRoute) stepperRoute.classList.add("active-step");
+            setStepperBadge(stepperPillWake, "Active", "pill-active");
+            setStepperBadge(stepperPillRecord, "Active", "pill-active");
+            setStepperBadge(stepperPillTranscribe, "Active", "pill-active");
+            setStepperBadge(stepperPillRoute, "Processing", "pill-processing");
         } else if (rawStatus.toLowerCase().includes("speaking")) {
             orbVisualizer.setAttribute("data-state", "speaking");
             statusPill.textContent = "SPEAKING";
             statusPill.style.color = "var(--accent-emerald)";
             statusPill.style.borderColor = "rgba(16, 185, 129, 0.4)";
             statusSubtext.textContent = "Speaking synthesized response aloud...";
-            nodeSpeak.classList.add("active-step");
+            if (nodeSpeak) nodeSpeak.classList.add("active-step");
+            if (stepperSpeak) stepperSpeak.classList.add("active-step");
+            setStepperBadge(stepperPillWake, "Active", "pill-active");
+            setStepperBadge(stepperPillRecord, "Active", "pill-active");
+            setStepperBadge(stepperPillTranscribe, "Active", "pill-active");
+            setStepperBadge(stepperPillRoute, "Active", "pill-active");
+            setStepperBadge(stepperPillSpeak, "Speaking", "pill-speaking");
         } else if (rawStatus.toLowerCase().includes("error")) {
             orbVisualizer.setAttribute("data-state", "idle");
             statusPill.textContent = "RECOVERING";
