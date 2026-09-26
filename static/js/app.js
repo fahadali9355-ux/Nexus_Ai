@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
             statusPill.textContent = "LISTENING WAKE";
             statusPill.style.color = "var(--primary-cyan)";
             statusPill.style.borderColor = "rgba(6, 182, 212, 0.4)";
-            statusSubtext.textContent = "Waiting for wake word trigger ('hey jarvis')...";
+            statusSubtext.textContent = "Waiting for wake word trigger ('Nexus')...";
             nodeWake.classList.add("active-step");
         } else if (rawStatus.toLowerCase().includes("command") || rawStatus.toLowerCase().includes("listening for command")) {
             orbVisualizer.setAttribute("data-state", "recording");
@@ -212,7 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <span>Nexus Response</span>
                         <button class="copy-btn" data-text="${escapeHtmlAttr(item.response || '')}">Copy</button>
                     </div>
-                    <div class="response-text">${escapeHtml(item.response || "")}</div>
+                    <div class="response-text markdown-body">${renderMarkdown(item.response || "")}</div>
                 </div>
             `;
             historyStream.appendChild(card);
@@ -328,6 +328,28 @@ document.addEventListener("DOMContentLoaded", () => {
         return String(str)
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+
+    function renderMarkdown(text) {
+        if (!text) return "";
+        if (typeof marked !== "undefined" && typeof marked.parse === "function") {
+            try {
+                return marked.parse(text, { breaks: true, gfm: true });
+            } catch (err) {
+                console.warn("[Markdown Error] marked.parse failed:", err);
+            }
+        }
+        // Resilient fallback formatting
+        let html = escapeHtml(text);
+        html = html.replace(/^### (.*$)/gim, "<h4>$1</h4>");
+        html = html.replace(/^## (.*$)/gim, "<h3>$1</h3>");
+        html = html.replace(/^# (.*$)/gim, "<h2>$1</h2>");
+        html = html.replace(/\*\*\*(.*?)\*\*\*/gim, "<strong><em>$1</em></strong>");
+        html = html.replace(/\*\*(.*?)\*\*/gim, "<strong>$1</strong>");
+        html = html.replace(/\*(.*?)\*/gim, "<em>$1</em>");
+        html = html.replace(/`([^`]+)`/gim, "<code>$1</code>");
+        html = html.replace(/\n/g, "<br>");
+        return html;
     }
 
     // Start Realtime Polling every 600ms

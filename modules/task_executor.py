@@ -15,13 +15,73 @@ from datetime import datetime
 import os
 from pathlib import Path
 import subprocess
+import time
 import urllib.parse
+import urllib.request
 import webbrowser
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from modules.document_generator import (
+    create_assignment_document,
+    create_docx,
+    create_pdf,
+    create_pptx,
+    open_generated_file,
+)
 
 
 # Designated safe folder for Nexus user-generated files and screenshots
 SAFE_BASE_DIR = Path.home() / "Documents" / "Nexus"
+
+# Known application executable / launch mappings for Windows
+KNOWN_APPS: Dict[str, str] = {
+    "notepad": "notepad.exe",
+    "calculator": "calc.exe",
+    "calc": "calc.exe",
+    "file explorer": "explorer.exe",
+    "explorer": "explorer.exe",
+    "files": "explorer.exe",
+    "this pc": "explorer.exe",
+    "chrome": "start chrome",
+    "google chrome": "start chrome",
+    "edge": "start msedge",
+    "msedge": "start msedge",
+    "microsoft edge": "start msedge",
+    "cmd": "cmd.exe",
+    "command prompt": "cmd.exe",
+    "terminal": "wt.exe",
+    "powershell": "powershell.exe",
+    "task manager": "taskmgr.exe",
+    "taskmgr": "taskmgr.exe",
+    "paint": "mspaint.exe",
+    "mspaint": "mspaint.exe",
+    "settings": "start ms-settings:",
+    "control panel": "control.exe",
+    "wordpad": "write.exe",
+}
+
+# Known web services and social platforms with their canonical URLs
+KNOWN_SERVICES: Dict[str, str] = {
+    "youtube": "https://www.youtube.com",
+    "github": "https://www.github.com",
+    "google": "https://www.google.com",
+    "reddit": "https://www.reddit.com",
+    "twitter": "https://www.twitter.com",
+    "x": "https://www.x.com",
+    "wikipedia": "https://www.wikipedia.org",
+    "gmail": "https://mail.google.com",
+    "chatgpt": "https://chatgpt.com",
+    "instagram": "https://www.instagram.com",
+    "facebook": "https://www.facebook.com",
+    "whatsapp": "https://web.whatsapp.com",
+    "linkedin": "https://www.linkedin.com",
+    "netflix": "https://www.netflix.com",
+    "spotify": "https://open.spotify.com",
+    "amazon": "https://www.amazon.com",
+    "twitch": "https://www.twitch.tv",
+    "pinterest": "https://www.pinterest.com",
+    "tiktok": "https://www.tiktok.com",
+}
 
 
 def _ensure_safe_directory() -> Path:
@@ -49,35 +109,8 @@ def open_application(app_name: str) -> str:
 
     clean_name = str(app_name).strip().lower()
 
-    # Known application mappings for Windows
-    app_map = {
-        "notepad": "notepad.exe",
-        "calculator": "calc.exe",
-        "calc": "calc.exe",
-        "file explorer": "explorer.exe",
-        "explorer": "explorer.exe",
-        "files": "explorer.exe",
-        "this pc": "explorer.exe",
-        "chrome": "start chrome",
-        "google chrome": "start chrome",
-        "edge": "start msedge",
-        "msedge": "start msedge",
-        "microsoft edge": "start msedge",
-        "cmd": "cmd.exe",
-        "command prompt": "cmd.exe",
-        "terminal": "wt.exe",
-        "powershell": "powershell.exe",
-        "task manager": "taskmgr.exe",
-        "taskmgr": "taskmgr.exe",
-        "paint": "mspaint.exe",
-        "mspaint": "mspaint.exe",
-        "settings": "start ms-settings:",
-        "control panel": "control.exe",
-        "wordpad": "write.exe",
-    }
-
     try:
-        target = app_map.get(clean_name)
+        target = KNOWN_APPS.get(clean_name)
         if target:
             if target.startswith("start "):
                 subprocess.Popen(target, shell=True)
@@ -221,36 +254,252 @@ def take_screenshot() -> str:
 
 
 import atexit
+import json
+import shutil
 import threading
 from typing import Any, Dict, List, Optional
 
-# Module-level persistent Selenium driver and tracked tabs mapping
+# Module-level persistent Selenium driver lock and instance
 _driver: Optional[Any] = None
 _driver_lock = threading.Lock()
-_tracked_tabs: Dict[str, str] = {}  # {friendly_key: window_handle}
+CHROME_DEBUG_PORT = 9222
+
+
+def _find_chrome_executable() -> Optional[str]:
+    """Locates the Google Chrome executable on the host system."""
+    candidates = [
+        os.path.expandvars(r"%PROGRAMFILES%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        shutil.which("chrome.exe"),
+        shutil.which("chrome"),
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return os.path.abspath(c)
+    return None
+
+
+def _is_debug_port_open(host: str = "127.0.0.1", port: int = CHROME_DEBUG_PORT, timeout: float = 0.5) -> bool:
+    """Checks whether Chrome is running and responding on the remote debugging port."""
+    try:
+        with urllib.request.urlopen(f"http://{host}:{port}/json/version", timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def is_chrome_running() -> bool:
+    """Checks if any chrome.exe processes are currently running on the system."""
+    try:
+        import psutil
+
+        for p in psutil.process_iter(["name"]):
+            if p.info["name"] and "chrome.exe" in p.info["name"].lower():
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def import_existing_chrome_profile(force: bool = False) -> Tuple[bool, str]:
+    """Imports login sessions, cookies, and preferences from the default Chrome profile into Nexus_Profile.
+
+    Note:
+        Chrome encrypts cookies and passwords using an encrypted key in 'Local State' via Windows DPAPI.
+        Copying both 'Local State' and the 'Default' profile database files allows Nexus_Profile to
+        access the user's existing logged-in accounts (e.g. Instagram, YouTube, GitHub) without re-logging in.
+        Chrome MUST be fully closed during this operation to prevent locked database errors.
+
+    Args:
+        force (bool): If True, overwrites existing files in Nexus_Profile even if already present.
+
+    Returns:
+        Tuple[bool, str]: (Success boolean, Status/Outcome message).
+    """
+    real_user_data = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
+    nexus_user_data = os.environ.get(
+        "CHROME_USER_DATA_DIR",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Nexus_Profile"),
+    )
+
+    if not os.path.exists(real_user_data):
+        return False, f"Source Chrome profile directory not found at: {real_user_data}"
+
+    target_cookies = os.path.join(nexus_user_data, "Default", "Network", "Cookies")
+    target_local_state = os.path.join(nexus_user_data, "Local State")
+
+    # If not forced and already imported, skip
+    if not force and os.path.exists(target_cookies) and os.path.exists(target_local_state):
+        return True, "Nexus_Profile already has imported login data. Pass force=True to re-import."
+
+    # Check if Chrome is running
+    if is_chrome_running():
+        return False, (
+            "Chrome is currently running. Chrome locks its login and cookie databases while open. "
+            "Please close all Chrome windows (including any background instances) before running the import."
+        )
+
+    try:
+        os.makedirs(os.path.join(nexus_user_data, "Default", "Network"), exist_ok=True)
+
+        # 1. Copy Local State (essential for DPAPI master key decryption)
+        src_local_state = os.path.join(real_user_data, "Local State")
+        if os.path.exists(src_local_state):
+            shutil.copy2(src_local_state, target_local_state)
+            print(f"[Profile Import] Copied Local State -> {target_local_state}")
+
+        # 2. Copy Default profile files (Cookies, Login Data, Preferences, Bookmarks, History)
+        src_default = os.path.join(real_user_data, "Default")
+        tgt_default = os.path.join(nexus_user_data, "Default")
+
+        files_to_copy = [
+            ("Preferences", "Preferences"),
+            ("Secure Preferences", "Secure Preferences"),
+            ("Login Data", "Login Data"),
+            ("Login Data-journal", "Login Data-journal"),
+            ("Web Data", "Web Data"),
+            ("Web Data-journal", "Web Data-journal"),
+            ("Bookmarks", "Bookmarks"),
+            ("History", "History"),
+            ("Favicons", "Favicons"),
+            ("Cookies", "Cookies"),
+            (os.path.join("Network", "Cookies"), os.path.join("Network", "Cookies")),
+            (os.path.join("Network", "Cookies-journal"), os.path.join("Network", "Cookies-journal")),
+            (os.path.join("Network", "Network Persistent State"), os.path.join("Network", "Network Persistent State")),
+            (os.path.join("Network", "TransportSecurity"), os.path.join("Network", "TransportSecurity")),
+            (os.path.join("Network", "Trust Tokens"), os.path.join("Network", "Trust Tokens")),
+        ]
+
+        copied_count = 0
+        for src_rel, tgt_rel in files_to_copy:
+            src_file = os.path.join(src_default, src_rel)
+            tgt_file = os.path.join(tgt_default, tgt_rel)
+            if os.path.exists(src_file):
+                os.makedirs(os.path.dirname(tgt_file), exist_ok=True)
+                shutil.copy2(src_file, tgt_file)
+                copied_count += 1
+
+        print(f"[Profile Import] Successfully imported {copied_count} profile files into Nexus_Profile.")
+        return True, f"Successfully imported Chrome profile ({copied_count} files) into Nexus_Profile."
+    except Exception as e:
+        print(f"[Profile Import Error] Failed to import Chrome profile: {e}")
+        return False, f"Failed to import Chrome profile: {e}"
+
+
+def _ensure_debug_chrome() -> bool:
+    """Ensures Chrome is running with remote debugging enabled (--remote-debugging-port=9222).
+
+    Uses a dedicated user-data-dir ('Nexus_Profile') allowing Nexus to run alongside
+    the user's normal Chrome windows without terminating or interfering with them.
+    """
+    if _is_debug_port_open():
+        return True
+
+    chrome_path = _find_chrome_executable()
+    if not chrome_path:
+        print("[Chrome Setup Error] Google Chrome executable not found on system.")
+        return False
+
+    # Determine user data directory (defaults to Nexus_Profile to satisfy Chromium security requirement)
+    user_data_dir = os.environ.get(
+        "CHROME_USER_DATA_DIR",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Nexus_Profile"),
+    )
+    profile_dir = os.environ.get("CHROME_PROFILE_DIR", "Default")
+
+    cmd = [
+        chrome_path,
+        f"--remote-debugging-port={CHROME_DEBUG_PORT}",
+        f"--user-data-dir={user_data_dir}",
+        f"--profile-directory={profile_dir}",
+        "--remote-allow-origins=*",
+        "--restore-last-session",
+    ]
+
+    try:
+        print(f"[Chrome Setup] Launching debug-enabled Chrome: {' '.join(cmd)}")
+        subprocess.Popen(cmd)
+    except Exception as launch_err:
+        print(f"[Chrome Setup Error] Failed to launch Chrome: {launch_err}")
+        return False
+
+    # Poll until remote debugging port is active (up to 5 seconds)
+    for _ in range(25):
+        if _is_debug_port_open():
+            print(f"[Chrome Setup] Chrome remote debugging connected successfully on port {CHROME_DEBUG_PORT}.")
+            return True
+        time.sleep(0.2)
+
+    print(f"[Chrome Setup Error] Timed out waiting for Chrome debug port {CHROME_DEBUG_PORT}.")
+    return False
+
+
+def _cdp_get_tabs() -> List[Dict[str, Any]]:
+    """Retrieves metadata of all open browser tabs via Chrome DevTools Protocol HTTP API."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{CHROME_DEBUG_PORT}/json/list", timeout=1.5) as resp:
+            data = json.loads(resp.read().decode())
+            return [t for t in data if t.get("type") == "page"]
+    except Exception as e:
+        print(f"[Browser CDP] Error getting tab list: {e}")
+        return []
+
+
+def _cdp_open_tab(url: str) -> bool:
+    """Opens a new tab navigating to target URL via Chrome DevTools Protocol HTTP API."""
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{CHROME_DEBUG_PORT}/json/new?{url}", method="PUT")
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            return resp.status == 200
+    except Exception as e:
+        print(f"[Browser CDP] Error opening tab '{url}': {e}")
+        return False
+
+
+def _cdp_close_tab(target_id: str) -> bool:
+    """Closes a specific tab by target ID via Chrome DevTools Protocol HTTP API."""
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{CHROME_DEBUG_PORT}/json/close/{target_id}", method="GET")
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            return resp.status == 200
+    except Exception as e:
+        print(f"[Browser CDP] Error closing tab ID '{target_id}': {e}")
+        return False
+
+
+def _cdp_activate_tab(target_id: str) -> bool:
+    """Brings a specific tab into active focus via Chrome DevTools Protocol HTTP API."""
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{CHROME_DEBUG_PORT}/json/activate/{target_id}", method="GET")
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            return resp.status == 200
+    except Exception as e:
+        print(f"[Browser CDP] Error activating tab ID '{target_id}': {e}")
+        return False
 
 
 def _get_driver() -> Optional[Any]:
-    """Retrieves or lazily initializes the persistent Selenium Chrome WebDriver instance.
+    """Retrieves or initializes Selenium WebDriver attached to the running debug-enabled Chrome instance.
 
-    Uses webdriver-manager for automatic ChromeDriver binary management.
-    Thread-safe and verifies active browser session liveness.
+    Uses options.add_experimental_option('debuggerAddress', '127.0.0.1:9222') so all Selenium
+    actions control the user's active Chrome instance without spawning separate processes.
     """
     global _driver
     with _driver_lock:
         if _driver is not None:
             try:
-                # Check if the driver session is still alive
                 _ = _driver.window_handles
                 return _driver
             except Exception:
-                # Session expired or user manually closed Chrome window
                 try:
                     _driver.quit()
                 except Exception:
                     pass
                 _driver = None
-                _tracked_tabs.clear()
+
+        if not _ensure_debug_chrome():
+            return None
 
         try:
             from selenium import webdriver
@@ -259,67 +508,44 @@ def _get_driver() -> Optional[Any]:
             from webdriver_manager.chrome import ChromeDriverManager
 
             options = Options()
-            options.add_argument("--start-maximized")
+            options.page_load_strategy = "none"
+            options.add_experimental_option("debuggerAddress", f"127.0.0.1:{CHROME_DEBUG_PORT}")
             options.add_argument("--disable-blink-features=AutomationControlled")
             options.add_argument("--log-level=3")
-            options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            options.add_experimental_option("useAutomationExtension", False)
 
-            # Auto-install/match compatible ChromeDriver binary
             service = Service(ChromeDriverManager().install())
             _driver = webdriver.Chrome(service=service, options=options)
-            print("[Browser Automation] Persistent Selenium Chrome WebDriver initialized.")
+            print("[Browser Automation] Selenium attached to debug-enabled Chrome instance.")
             return _driver
         except Exception as driver_err:
-            print(f"[Browser Automation Warning] Failed to initialize Selenium WebDriver: {driver_err}")
+            print(f"[Browser Automation Warning] Failed to attach Selenium WebDriver: {driver_err}")
             _driver = None
             return None
 
 
 def cleanup_browser() -> None:
-    """Gracefully quits the persistent Selenium browser instance and frees resources."""
+    """Disconnects the persistent Selenium WebDriver session without closing the user's Chrome windows."""
     global _driver
     with _driver_lock:
         if _driver is not None:
             try:
-                print("[Browser Automation] Closing persistent Selenium WebDriver...")
+                print("[Browser Automation] Disconnecting Selenium WebDriver session...")
                 _driver.quit()
             except Exception as quit_err:
-                print(f"[Browser Automation Warning] Error quitting WebDriver: {quit_err}")
+                print(f"[Browser Automation Warning] Note during disconnect: {quit_err}")
             finally:
                 _driver = None
-                _tracked_tabs.clear()
 
 
 # Register cleanup with Python atexit handler
 atexit.register(cleanup_browser)
 
 
-def _extract_friendly_key(url_or_term: str) -> str:
-    """Extracts a normalized, friendly key from a URL or search query for tab tracking."""
-    cleaned = str(url_or_term).strip().lower()
-    # Remove protocol prefix
-    if cleaned.startswith("http://"):
-        cleaned = cleaned[7:]
-    elif cleaned.startswith("https://"):
-        cleaned = cleaned[8:]
-    # Remove leading 'www.'
-    if cleaned.startswith("www."):
-        cleaned = cleaned[4:]
-    # Split query parameters or path
-    cleaned = cleaned.split("/")[0].split("?")[0]
-    # If domain contains extensions, extract base name (e.g. 'youtube.com' -> 'youtube')
-    parts = cleaned.split(".")
-    if len(parts) > 1 and parts[0]:
-        return parts[0]
-    return cleaned
-
-
 def open_website(url_or_search_term: str) -> str:
-    """Opens a website URL or search term in a new tab of the persistent Selenium browser.
+    """Opens a website URL or search query as a new tab in the debug-enabled Chrome instance.
 
-    Tracks the window handle under friendly identifiers for targeted tab closing.
-    Falls back gracefully to the standard default browser if Selenium is unavailable.
+    Ensures Chrome is running with remote debugging enabled so all opened tabs can later be
+    selectively targeted and closed individually without affecting other open tabs.
 
     Args:
         url_or_search_term (str): Web address or search keywords.
@@ -339,167 +565,130 @@ def open_website(url_or_search_term: str) -> str:
     elif "." in raw_target and " " not in raw_target:
         target_url = f"https://{raw_target}"
     else:
-        # Check if known direct service without TLD (e.g. 'youtube', 'github', 'reddit')
-        known_services = {
-            "youtube": "https://www.youtube.com",
-            "github": "https://www.github.com",
-            "google": "https://www.google.com",
-            "reddit": "https://www.reddit.com",
-            "twitter": "https://www.twitter.com",
-            "x": "https://www.x.com",
-            "wikipedia": "https://www.wikipedia.org",
-            "gmail": "https://mail.google.com",
-            "chatgpt": "https://chatgpt.com",
-        }
-        if target_lower in known_services:
-            target_url = known_services[target_lower]
+        # Check if known direct service without TLD (e.g. 'instagram', 'youtube', 'github', 'reddit')
+        if target_lower in KNOWN_SERVICES:
+            target_url = KNOWN_SERVICES[target_lower]
         else:
             query_enc = urllib.parse.quote_plus(raw_target)
             target_url = f"https://www.google.com/search?q={query_enc}"
 
-    driver = _get_driver()
-    if driver is None:
-        # Fallback to standard system browser
+    # Ensure debug-enabled Chrome is running
+    chrome_ready = _ensure_debug_chrome()
+    if not chrome_ready:
+        # Fallback to standard browser launch if Chrome could not be initialized
         try:
             webbrowser.open(target_url)
-            return f"Opening {raw_target} in your default browser."
+            return f"Opening {raw_target} in your browser."
         except Exception as wb_err:
-            return f"Sorry, could not open web link: {wb_err}"
+            return f"Sorry, could not open website: {wb_err}"
 
-    # Selenium browser automation
-    try:
-        with _driver_lock:
-            handles = driver.window_handles
-            if len(handles) == 1 and driver.current_url in ("data:,", "about:blank", ""):
-                # Reuse the initial default blank tab
-                driver.get(target_url)
-                current_handle = driver.current_window_handle
-            else:
-                # Open a new tab in the existing browser window
-                driver.switch_to.new_window("tab")
-                driver.get(target_url)
-                current_handle = driver.current_window_handle
+    # Primary method: Instant DevTools Protocol tab creation (0.02s latency, non-blocking)
+    opened = _cdp_open_tab(target_url)
+    if not opened:
+        # Fallback to Selenium attached driver
+        driver = _get_driver()
+        if driver is not None:
+            try:
+                with _driver_lock:
+                    if driver.window_handles:
+                        driver.switch_to.window(driver.window_handles[-1])
+                    driver.execute_script("window.open(arguments[0], '_blank');", target_url)
+                    opened = True
+            except Exception as sel_err:
+                print(f"[Browser Automation Error] Selenium tab open fallback failed: {sel_err}")
 
-            # Store friendly key and raw target mappings
-            friendly_key = _extract_friendly_key(raw_target)
-            _tracked_tabs[friendly_key] = current_handle
-            _tracked_tabs[target_lower] = current_handle
-
-            return f"Opening {raw_target} in a new browser tab."
-    except Exception as sel_err:
-        print(f"[Browser Automation Error] Selenium navigation failed: {sel_err}. Falling back to default browser...")
-        try:
-            webbrowser.open(target_url)
-            return f"Opening {raw_target} in your default browser."
-        except Exception:
-            return f"Sorry, could not open website: {sel_err}"
+    if opened:
+        return f"Opening {raw_target} in your browser."
+    else:
+        return f"Sorry, could not open {raw_target} in your browser."
 
 
 def close_website(identifier: str) -> str:
-    """Closes a specific website tab in the persistent Selenium browser by name or keyword.
+    """Selectively closes ONLY the specific browser tab matching the target website name or keyword.
 
-    Searches tracked tabs first, then checks active tab titles/URLs across the session.
-    Only closes the matched tab, leaving other tabs and the browser active.
+    Leaves all other open tabs completely untouched and alive.
 
     Args:
-        identifier (str): Website name, domain, or keyword (e.g. 'youtube', 'github', 'google').
+        identifier (str): Website name, domain, or keyword (e.g. 'instagram', 'youtube', 'github').
 
     Returns:
-        str: TTS-friendly confirmation message.
+        str: TTS-friendly confirmation or not-found message.
     """
     if not identifier or not str(identifier).strip():
         return "Please specify the website tab you would like to close."
 
-    clean_id = str(identifier).strip().lower()
-    # Normalize common conversational suffixes (e.g. 'youtube tab' -> 'youtube')
-    for suffix in [" tab", " website", " webpage", " page"]:
-        if clean_id.endswith(suffix):
-            clean_id = clean_id[: -len(suffix)].strip()
+    clean_target = str(identifier).strip().lower()
+    # Normalize common conversational suffixes (e.g. 'instagram tab' -> 'instagram')
+    for suffix in [" tab", " website", " webpage", " page", " window"]:
+        if clean_target.endswith(suffix):
+            clean_target = clean_target[: -len(suffix)].strip()
 
+    if not clean_target:
+        clean_target = str(identifier).strip().lower()
+
+    # Ensure Chrome debug port is active
+    if not _is_debug_port_open():
+        if not _ensure_debug_chrome():
+            return f"I couldn't find an open tab for '{identifier}'."
+
+    # Query all active tabs via DevTools Protocol
+    tabs = _cdp_get_tabs()
+    matching_tabs: List[Dict[str, Any]] = []
+
+    for t in tabs:
+        title = (t.get("title") or "").lower()
+        url = (t.get("url") or "").lower()
+        if clean_target in title or clean_target in url:
+            matching_tabs.append(t)
+
+    # If CDP found matching tabs, close only the matching tab(s)
+    if matching_tabs:
+        closed_count = 0
+        for t in matching_tabs:
+            tid = t.get("id")
+            if tid and _cdp_close_tab(tid):
+                closed_count += 1
+
+        # Activate the most recent remaining tab so the window stays active
+        remaining = _cdp_get_tabs()
+        if remaining:
+            active_id = remaining[0].get("id")
+            if active_id:
+                _cdp_activate_tab(active_id)
+
+        if closed_count == 1:
+            return f"Closed the tab for '{identifier}'."
+        elif closed_count > 1:
+            return f"Closed {closed_count} tabs matching '{identifier}'."
+
+    # Secondary fallback via attached Selenium driver
     driver = _get_driver()
-    if driver is None:
-        return f"I couldn't find a tab for '{identifier}' that's currently open."
-
-    try:
-        with _driver_lock:
-            all_handles = driver.window_handles
-            if not all_handles:
-                _tracked_tabs.clear()
-                return f"I couldn't find a tab for '{identifier}' that's currently open."
-
-            # Clean stale handles from tracked dictionary
-            stale_keys = [k for k, h in _tracked_tabs.items() if h not in all_handles]
-            for k in stale_keys:
-                _tracked_tabs.pop(k, None)
-
-            target_handle: Optional[str] = None
-            target_name = identifier
-
-            # Step 1: Check tracked tabs dictionary (exact or substring match)
-            if clean_id in _tracked_tabs:
-                target_handle = _tracked_tabs[clean_id]
-                target_name = clean_id
-            else:
-                for tracked_key, handle in _tracked_tabs.items():
-                    if clean_id in tracked_key or tracked_key in clean_id:
-                        target_handle = handle
-                        target_name = tracked_key
-                        break
-
-            # Step 2: Fallback - Inspect all open tabs in current session by Title and URL
-            if target_handle is None:
-                current_active = driver.current_window_handle
-                for h in all_handles:
+    if driver is not None:
+        try:
+            with _driver_lock:
+                closed_count = 0
+                for h in list(driver.window_handles):
                     try:
                         driver.switch_to.window(h)
                         title = (driver.title or "").lower()
                         url = (driver.current_url or "").lower()
-                        if clean_id in title or clean_id in url:
-                            target_handle = h
-                            target_name = driver.title or identifier
-                            break
-                    except Exception:
-                        continue
-                # Restore active window if no match was found
-                if target_handle is None and current_active in all_handles:
-                    try:
-                        driver.switch_to.window(current_active)
+                        if clean_target in title or clean_target in url:
+                            driver.close()
+                            closed_count += 1
+                            break  # Close most relevant matching tab
                     except Exception:
                         pass
 
-            # Step 3: If tab was found, close ONLY that tab
-            if target_handle is not None and target_handle in driver.window_handles:
-                driver.switch_to.window(target_handle)
+                # Restore focus to a remaining window handle
+                if driver.window_handles:
+                    driver.switch_to.window(driver.window_handles[-1])
 
-                # If this is the last remaining tab in the browser, open a blank tab first
-                # so the browser window remains open and alive for future commands
-                if len(driver.window_handles) == 1:
-                    driver.switch_to.new_window("tab")
-                    driver.get("about:blank")
-                    driver.switch_to.window(target_handle)
-                    driver.close()
-                    # Switch to the new blank tab
-                    driver.switch_to.window(driver.window_handles[0])
-                else:
-                    driver.close()
-                    # Switch focus to the latest remaining tab
-                    remaining_handles = driver.window_handles
-                    if remaining_handles:
-                        driver.switch_to.window(remaining_handles[-1])
+                if closed_count > 0:
+                    return f"Closed the tab for '{identifier}'."
+        except Exception as sel_err:
+            print(f"[Browser Automation Error] Selenium tab close error: {sel_err}")
 
-                # Remove closed handle from tracked dictionary
-                keys_to_remove = [k for k, h in _tracked_tabs.items() if h == target_handle]
-                for k in keys_to_remove:
-                    _tracked_tabs.pop(k, None)
-
-                return f"Closed the {target_name.capitalize()} tab."
-
-            # Step 4: Not found
-            return f"I couldn't find a tab for '{identifier}' that's currently open."
-
-    except Exception as close_err:
-        print(f"[Browser Automation Error] Error closing tab for '{identifier}': {close_err}")
-        return f"Sorry, I had trouble closing the tab for '{identifier}'."
+    return f"I couldn't find an open tab for '{identifier}'."
 
 
 def get_open_tabs() -> List[Dict[str, str]]:
@@ -508,8 +697,19 @@ def get_open_tabs() -> List[Dict[str, str]]:
     Useful for diagnostics and automated verification.
 
     Returns:
-        List[Dict[str, str]]: List of dictionaries containing handle, title, and current URL.
+        List[Dict[str, str]]: List of dictionaries containing handle/id, title, and current URL.
     """
+    tabs = _cdp_get_tabs()
+    if tabs:
+        return [
+            {
+                "handle": t.get("id", ""),
+                "title": t.get("title", ""),
+                "url": t.get("url", ""),
+            }
+            for t in tabs
+        ]
+
     driver = _get_driver()
     if driver is None:
         return []
@@ -530,7 +730,6 @@ def get_open_tabs() -> List[Dict[str, str]]:
                     )
                 except Exception:
                     pass
-            # Restore active focus
             if current_handle in driver.window_handles:
                 driver.switch_to.window(current_handle)
     except Exception as e:

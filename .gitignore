@@ -15,6 +15,10 @@ __pycache__/
 *.wav
 *.mp3
 *.log
+*.pdf
+
+# Heavy neural models (ONNX models can be downloaded separately)
+*.onnx
 
 # IDE & OS
 .vscode/

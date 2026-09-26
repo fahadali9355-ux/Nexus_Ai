@@ -25,7 +25,7 @@ def test_full_cycle():
     print("\n[Stage 1/5: Wake Word Event Trigger]")
     state.set_status("Listening for command", active_module="Audio Recorder")
     print("-> Status updated to: 'Listening for command'")
-    print("-> Wake word 'hey jarvis' (Nexus trigger) acknowledged.")
+    print("-> Wake word 'Nexus' trigger acknowledged.")
 
     # Stage 2: Audio Recording
     print("\n[Stage 2/5: Audio Recording Capture]")
@@ -55,7 +55,7 @@ def test_full_cycle():
     print("\n[Stage 5/5: Text-to-Speech Output]")
     state.set_status("Speaking", active_module="Text-to-Speech", last_response=response_text)
     tts_result = speak_text(response_text[:120])
-    print(f"-> pyttsx3 speech synthesis result: {tts_result}")
+    print(f"-> Piper TTS speech synthesis result: {tts_result}")
 
     # Synchronize History & Reset to Idle
     entry = state.add_history(

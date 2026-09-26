@@ -32,7 +32,7 @@
                 </div>
                 <div class="metric-chip">
                     <span class="metric-label">Wake Word:</span>
-                    <code class="metric-value">"hey jarvis" (Nexus)</code>
+                    <code class="metric-value">"Nexus" (or "Hey Nexus")</code>
                 </div>
                 <div class="metric-chip">
                     <span class="metric-label">Uptime:</span>
@@ -72,7 +72,7 @@
                     <!-- Status Text Display -->
                     <div class="status-info">
                         <h2 class="current-status-text" id="current-status-display">Idle / Listening for wake word</h2>
-                        <p class="status-subtext" id="status-subtext">Waiting for microphone activation (say 'Hey Jarvis' to trigger Nexus)</p>
+                        <p class="status-subtext" id="status-subtext">Waiting for microphone activation (say 'Nexus' or 'Hey Nexus')</p>
                     </div>
 
                     <!-- Active Component Telemetry -->
@@ -107,7 +107,7 @@
                             <div class="step-dot"></div>
                             <div class="step-content">
                                 <span class="step-name">1. Wake Word</span>
-                                <span class="step-desc">openwakeword ('hey_jarvis')</span>
+                                <span class="step-desc">Vosk ('nexus')</span>
                             </div>
                         </div>
                         <div class="step-connector"></div>
@@ -139,7 +139,7 @@
                             <div class="step-dot"></div>
                             <div class="step-content">
                                 <span class="step-name">5. TTS Voice</span>
-                                <span class="step-desc">pyttsx3 Speech Synthesizer</span>
+                                <span class="step-desc">Piper Neural TTS</span>
                             </div>
                         </div>
                     </div>
@@ -195,7 +195,7 @@
                         <div class="empty-state" id="empty-state">
                             <div class="empty-icon">🎙️</div>
                             <h3>No Voice Interactions Yet</h3>
-                            <p>Say <span class="highlight">"Hey Jarvis"</span> to trigger Nexus, or send a test command using the simulator on the left.</p>
+                            <p>Say <span class="highlight">"Nexus"</span> or <span class="highlight">"Hey Nexus"</span> to trigger Nexus, or send a test command using the simulator on the left.</p>
                         </div>
                     </div>
                 </div>
@@ -206,6 +206,15 @@
     <!-- Notification Toast -->
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Markdown Renderer Library (Local + CDN fallback) -->
+    <script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
+    <script>
+        if (typeof marked === "undefined") {
+            const cdnScript = document.createElement("script");
+            cdnScript.src = "https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js";
+            document.head.appendChild(cdnScript);
+        }
+    </script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

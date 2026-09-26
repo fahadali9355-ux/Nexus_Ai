@@ -21,6 +21,30 @@ class StateManager:
         self._history: List[Dict[str, Any]] = []
         self._cycle_counter: int = 0
         self._is_running: bool = True
+        self._pending_action: Optional[Dict[str, Any]] = None
+
+    def set_pending_action(self, action: Dict[str, Any], timeout_seconds: float = 90.0) -> None:
+        """Sets a lightweight pending action for multi-step or clarifying confirmation."""
+        with self._lock:
+            action_data = dict(action)
+            action_data["timestamp"] = time.time()
+            action_data["expires_at"] = time.time() + timeout_seconds
+            self._pending_action = action_data
+
+    def get_pending_action(self) -> Optional[Dict[str, Any]]:
+        """Returns the active pending action if not expired, or None."""
+        with self._lock:
+            if not self._pending_action:
+                return None
+            if time.time() > self._pending_action.get("expires_at", 0):
+                self._pending_action = None
+                return None
+            return dict(self._pending_action)
+
+    def clear_pending_action(self) -> None:
+        """Clears any active pending action."""
+        with self._lock:
+            self._pending_action = None
 
     def set_status(
         self,

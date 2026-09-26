@@ -46,6 +46,12 @@ def record_audio(
         print(f"Saved recording to '{output_filename}'.")
         return output_filename
 
+    except KeyboardInterrupt:
+        try:
+            sd.stop()
+        except Exception:
+            pass
+        raise
     except sd.PortAudioError as err:
         print(f"[Error: Audio Input] PortAudio microphone error: {err}")
         return None
@@ -170,6 +176,12 @@ def record_audio_with_silence_detection(
         print(f"[Audio Recorder] Saved {total_duration:.2f}s recording to '{output_filename}'.")
         return output_filename
 
+    except KeyboardInterrupt:
+        try:
+            sd.stop()
+        except Exception:
+            pass
+        raise
     except sd.PortAudioError as err:
         print(f"[Audio Recorder Error] PortAudio device exception: {err}")
         return None
